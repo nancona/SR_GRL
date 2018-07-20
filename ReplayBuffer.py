@@ -3,7 +3,7 @@
 """
 Created on July 2018
 
-@author: nicola ancona
+@author: nancona
 """
 
 from collections import deque
