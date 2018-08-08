@@ -6,12 +6,11 @@ Created on July 2018
 @author: nancona
 """
 
-import tensorflow as tf
-import tflearn
 
 import tensorflow as tf
 import tflearn
 import math
+
 
 class Critic(object):
     """
@@ -19,8 +18,8 @@ class Critic(object):
     The action must be obtained from the output of the Actor network.
     """
 
-    def __init__(self, state_dim, action_dim, learning_rate, tau, num_actor_vars):
-        # self.sess = sess
+    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars):
+        self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
         self.learning_rate = learning_rate
@@ -83,30 +82,30 @@ class Critic(object):
         critic_output = tflearn.fully_connected(net, 1, weights_init=w_init)
         return inputs, action, critic_output
 
-    def train(self, sess, inputs, action, predicted_q_value):
-        return sess.run([self.out, self.optimize], feed_dict={
+    def train(self, inputs, action, predicted_q_value):
+        return self.sess.run([self.out, self.optimize], feed_dict={
             self.inputs: inputs,
             self.action: action,
             self.predicted_q_value: predicted_q_value
         })
 
-    def predict(self, sess, inputs, action):
-        return sess.run(self.out, feed_dict={
+    def predict(self, inputs, action):
+        return self.sess.run(self.out, feed_dict={
             self.inputs: inputs,
             self.action: action
         })
 
-    def predict_target(self, sess, inputs, action):
-        return sess.run(self.target_out, feed_dict={
+    def predict_target(self, inputs, action):
+        return self.sess.run(self.target_out, feed_dict={
             self.target_inputs: inputs,
             self.target_action: action
         })
 
-    def action_gradients(self, sess, inputs, actions):
-        return sess.run(self.action_grads, feed_dict={
+    def action_gradients(self, inputs, actions):
+        return self.sess.run(self.action_grads, feed_dict={
             self.inputs: inputs,
             self.action: actions
         })
 
-    def update_target_network(self, sess):
-        sess.run(self.update_target_network_params)
+    def update_target_network(self):
+        self.sess.run(self.update_target_network_params)

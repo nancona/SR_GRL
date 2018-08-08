@@ -19,8 +19,8 @@ class Actor(object):
     between -2 and 2
     """
 
-    def __init__(self, state_dim, action_dim, action_bound, learning_rate, tau):
-        # self.sess = sess
+    def __init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau):
+        self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
         self.action_bound = action_bound
@@ -70,24 +70,24 @@ class Actor(object):
         scaled_output = tf.multiply(actor_output, self.action_bound)  # Scale output to -action_bound to action_bound
         return inputs, actor_output, scaled_output
 
-    def train(self, sess, inputs, a_gradient):
-        sess.run(self.optimize, feed_dict={
+    def train(self, inputs, a_gradient):
+        self.sess.run(self.optimize, feed_dict={
             self.inputs: inputs,
             self.action_gradient: a_gradient
         })
 
-    def predict(self, sess, inputs):
-        return sess.run(self.scaled_out, feed_dict={
+    def predict(self, inputs):
+        return self.sess.run(self.scaled_out, feed_dict={
             self.inputs: inputs
         })
 
-    def predict_target(self, sess, inputs):
-        return sess.run(self.target_scaled_out, feed_dict={
+    def predict_target(self, inputs):
+        return self.sess.run(self.target_scaled_out, feed_dict={
             self.target_inputs: inputs
         })
 
-    def update_target_network(self, sess):
-        sess.run(self.update_target_network_params)
+    def update_target_network(self):
+        self.sess.run(self.update_target_network_params)
 
     def get_num_trainable_vars(self):
         return self.num_trainable_vars

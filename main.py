@@ -8,17 +8,16 @@ Created on July 2018
 
 import tensorflow as tf
 import numpy as np
-import tflearn
-import math
 from ReplayBuffer import ReplayBuffer
-from computingThings import Step
 from models import Models
+from actorNetwork import Actor
+from criticNetwork import Critic
 
 # ==========================
 #   Training Parameters
 # ==========================
 # Max training steps
-# MAX_EPISODES = 50000
+MAX_EPISODES = 50000
 # Max episode length
 MAX_EPISODE_LENGTH = 1010
 # Base learning rate for the Actor network
@@ -37,8 +36,7 @@ RANDOM_SEED = 1234
 TRAINING_SIZE = 2000
 BUFFER_SIZE = 300000
 MINIBATCH_SIZE = 64
-# ???????
-MIN_BUFFER_SIZE = 20000
+MIN_BUFFER_SIZE = 200
 # Environment Parameters
 ACTION_DIMENSION = 6
 ACTION_DIMENSION_GRL = 9
@@ -53,56 +51,78 @@ OU_THETA = 0.15
 OU_MU = 0
 OU_SIGMA = 0.2
 
-def ou_noise(theta, mu, sigma, noise, dims):
+
+def compute_ou_noise(noise):
     # Solve using Euler-Maruyama method
-    noise = noise + theta * (mu - noise) + sigma * np.random.randn(dims)
+    noise = noise + OU_THETA * (OU_MU - noise) + OU_SIGMA * np.random.randn(ACTION_DIMENSION)
     return noise
 
-def compute_action(actor, mod_state, noise):
-    action = actor.predict(np.reshape(mod_state, (1, actor.s_dim))) + ou_noise(OU_THETA, OU_MU, OU_SIGMA, noise, ACTION_DIMENSION)
+
+def compute_action(actor, s, noise):
+    action = actor.predict(np.reshape(s, (1, STATE_DIMS))) + compute_ou_noise(noise)
     action = np.reshape(action, (ACTION_DIMENSION,))
     action = np.clip(action, -1, 1)
     return action
 
-def train(args, actor, critic, actor_noise):
 
+def train(sess, actor, critic):
+    sess.run(tf.global_variables_initializer())
+
+    #initialize actor, critic and replay buffer
     actor.update_target_network()
     critic.update_target_network()
-    replay_buffer = ReplayBuffer(int(args['buffer size']), int(args['random_seed']))
+    replay_buffer = ReplayBuffer(BUFFER_SIZE, RANDOM_SEED)
 
-    for i in range(int(args['max_episodes'])):
+    s = Models(0, 0, -0.101485,
+               0.100951, 0.819996, -0.00146549,
+               -1.27, 4.11e-6, 2.26e-7,
+               0, 0, 0,
+               0, 0, 0,
+               0, 0, 0)
 
-        s = Models.reset()
-        ep_reward = 0
-        ep_ave_max_q = 0
+    print s.current_state()
 
-        for j in range(int(args['max_episode_len'])):
+    for i in range(MAX_EPISODES):
 
-            a = compute_action(actor, s, noise)
-            s2, r, terminal, info = env.step(a[0])
-            replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, actor.a_dim), r,
+        # initialize noise process
+        noise = np.zeros(ACTION_DIMENSION)
+        total_episode_reward = 0
+
+        for j in range(MAX_EPISODE_LENGTH):
+            s0 = s.current_state()
+            a = compute_action(actor, s0, noise)
+
+            #computing next step, reward and terminal
+            s2 = s.next_states(s0, a)
+            r = s.calc_reward(s2, s0)
+            print s.current_state()
+            terminal = s.calc_terminal()
+
+            replay_buffer.add(np.reshape(s0, (actor.s_dim,)), np.reshape(a, actor.a_dim), r,
                               terminal, np.reshape(s2, (actor.s_dim,)))
+
+            total_episode_reward += r
 
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
-            if replay_buffer.size() > int(args['minibatch_size']):
-                s_batch, a_batch, r_batch, t_batch, s2_batch = ReplayBuffer.sample_batch(int(args['minibatch_size']))
+            if replay_buffer.size() > MIN_BUFFER_SIZE:
+                print "reached min buffer size"
+                s_batch, a_batch, r_batch, t_batch, s2_batch = replay_buffer.sample_batch(MINIBATCH_SIZE)
 
                 # calculate targets
                 target_q = critic.predict_target(s2_batch, actor.predict_target(s2_batch))
 
                 y_i = []
-                for k in range(int(args(['minibatch_size']))):
+                for k in range(MINIBATCH_SIZE):
                     if t_batch[k]:
                         y_i.append(r_batch[k])
                     else:
-                        y_i.append(r_batch[k] + critic.gamma * target_q[k])
+                        y_i.append(r_batch[k] + GAMMA * target_q[k])
 
                 # Update the critic given the targets
-                predicted_q_value, _ = critic.train(
-                    s_batch, a_batch, np.reshape(y_i, (int(args['minibatch_size']), 1)))
+                predicted_q_value, _ = critic.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
 
-                ep_ave_max_q += np.amax(predicted_q_value)
+                # ep_ave_max_q += np.amax(predicted_q_value)
 
                 # Update the actor policy using the sampled gradient
                 a_outs = actor.predict(s_batch)
@@ -113,5 +133,25 @@ def train(args, actor, critic, actor_noise):
                 actor.update_target_network()
                 critic.update_target_network()
 
-            s = s2
-            ep_reward += r
+            if not terminal == 0:
+                print i, j, total_episode_reward
+                break
+
+        s = s.reset()
+
+
+def main():
+
+    # Initialize the actor, critic and difference networks
+
+    with tf.Session() as sess:
+
+        actor = Actor(sess, STATE_DIMS, ACTION_DIMENSION, 1,
+                             ACTOR_LEARNING_RATE, TAU)
+        critic = Critic(sess, STATE_DIMS, ACTION_DIMENSION, CRITIC_LEARNING_RATE, TAU,
+                               actor.get_num_trainable_vars())
+        train(sess, actor, critic)
+
+
+if __name__ == "__main__":
+    main()
