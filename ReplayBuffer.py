@@ -3,7 +3,6 @@
 """
 Created on July 2018
 
-@author: nancona
 """
 
 from collections import deque

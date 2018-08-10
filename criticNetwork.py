@@ -3,7 +3,6 @@
 """
 Created on July 2018
 
-@author: nancona
 """
 
 
@@ -46,7 +45,7 @@ class Critic(object):
         self.predicted_q_value = tf.placeholder(tf.float32, [None, 1])
 
         # Define loss and optimization Op
-        var = tf.add_n([ tf.nn.l2_loss(v) for v in self.network_params if 'bias' not in v.name ]) * self.l2
+        var = tf.add_n([tf.nn.l2_loss(v) for v in self.network_params if 'bias' not in v.name]) * self.l2
 
         self.loss = tflearn.mean_square(self.predicted_q_value, self.out) + var
         self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
